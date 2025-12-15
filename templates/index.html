@@ -182,17 +182,6 @@
             color: #721c24;
         }
         
-        .month-item.loading {
-            background: #cce5ff;
-            color: #004085;
-            animation: pulse 1s infinite;
-        }
-        
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
-        
         .result {
             display: none;
             margin-top: 30px;
@@ -542,7 +531,7 @@
         </div>
         
         <div class="progress-container" id="progressContainer">
-            <div class="progress-title">🛰️ Fetching 10-Month Time-Series Data</div>
+            <div class="progress-title">🛰️ Satellite Data Availability (Oct-Jul)</div>
             <div class="month-grid" id="monthGrid">
                 <div class="month-item" id="month-Oct">Oct</div>
                 <div class="month-item" id="month-Nov">Nov</div>
@@ -557,7 +546,8 @@
             </div>
             <div class="info" style="margin-top: 15px;">
                 <span style="color: #155724;">✅ Data available</span> &nbsp;|&nbsp;
-                <span style="color: #721c24;">❌ No data</span>
+                <span style="color: #721c24;">❌ No data</span> &nbsp;|&nbsp;
+                <span style="color: #666;">Results shown after fetching</span>
             </div>
         </div>
         
@@ -812,17 +802,8 @@
         // Load history on page load
         renderHistory();
         
-        function simulateProgress() {
-            // Simulate month-by-month loading
-            months.forEach((month, index) => {
-                setTimeout(() => {
-                    document.getElementById(`month-${month}`).classList.add('loading');
-                }, index * 3000); // 3 seconds per month
-            });
-        }
-        
         function updateProgress(missingMonths) {
-            // Update based on actual results
+            // Update based on actual results - no animation, just show results
             months.forEach(month => {
                 const elem = document.getElementById(`month-${month}`);
                 elem.classList.remove('loading');
@@ -858,9 +839,8 @@
             document.getElementById('error').classList.remove('active');
             document.getElementById('submitBtn').disabled = true;
             
-            // Reset and start progress simulation
+            // Reset progress display
             resetProgress();
-            simulateProgress();
             
             try {
                 const response = await fetch('/api/predict', {
