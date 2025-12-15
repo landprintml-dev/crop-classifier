@@ -753,13 +753,15 @@
             }, 3000);
         }
         
-        function addToHistory(lat, lon, year, prediction, confidence) {
+        function addToHistory(lat, lon, year, prediction, confidence, allProbabilities, missingMonths) {
             const historyItem = {
                 lat: lat.toFixed(4),
                 lon: lon.toFixed(4),
                 year,
                 prediction,
                 confidence: (confidence * 100).toFixed(1),
+                allProbabilities,
+                missingMonths: missingMonths || [],
                 timestamp: new Date().toISOString()
             };
             
@@ -821,10 +823,47 @@
         
         function loadFromHistory(index) {
             const item = predictionHistory[index];
+            
+            // Load coordinates
             document.getElementById('lat').value = item.lat;
             document.getElementById('lon').value = item.lon;
             document.getElementById('year').value = item.year;
             map.setView([parseFloat(item.lat), parseFloat(item.lon)], 10);
+            
+            // Display the full prediction result
+            document.getElementById('cropName').textContent = item.prediction.replace('_', ' ');
+            document.getElementById('confidence').textContent = `Confidence: ${item.confidence}%`;
+            
+            // Show data quality info
+            if (item.missingMonths && item.missingMonths.length > 0) {
+                document.getElementById('confidence').innerHTML += 
+                    `<br><small style="color: #f57c00;">⚠️ ${item.missingMonths.length} month(s) had no data</small>`;
+            }
+            
+            // Show all probabilities
+            if (item.allProbabilities) {
+                const probsHtml = Object.entries(item.allProbabilities)
+                    .sort((a, b) => b[1] - a[1])
+                    .map(([name, prob]) => `
+                        <div class="prob-item">
+                            <div class="prob-label">
+                                <span>${name.replace('_', ' ')}</span>
+                                <span>${(prob * 100).toFixed(1)}%</span>
+                            </div>
+                            <div class="prob-bar">
+                                <div class="prob-fill" style="width: ${prob * 100}%"></div>
+                            </div>
+                        </div>
+                    `).join('');
+                
+                document.getElementById('probabilities').innerHTML = probsHtml;
+            }
+            
+            // Show result panel
+            document.getElementById('result').classList.add('active');
+            
+            // Scroll to result
+            document.getElementById('result').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
         
         // Load history on page load
@@ -885,8 +924,8 @@
                     // Update progress with actual results
                     updateProgress(data.missing_months || []);
                     
-                    // Add to history
-                    addToHistory(lat, lon, year, data.predicted_class, data.confidence);
+                    // Add to history with full data
+                    addToHistory(lat, lon, year, data.predicted_class, data.confidence, data.all_probabilities, data.missing_months);
                     
                     // Show result
                     document.getElementById('cropName').textContent = data.predicted_class.replace('_', ' ');
