@@ -135,16 +135,16 @@
         }
         
         .progress-container {
-            display: none;
             margin-top: 20px;
             padding: 20px;
             background: #f8f9fa;
             border-radius: 10px;
             border-left: 4px solid #667eea;
+            min-height: 150px;
         }
         
-        .progress-container.active {
-            display: block;
+        .progress-container.hidden {
+            display: none;
         }
         
         .progress-title {
@@ -530,7 +530,7 @@
             <p class="info">This may take 30-60 seconds</p>
         </div>
         
-        <div class="progress-container" id="progressContainer">
+        <div class="progress-container hidden" id="progressContainer">
             <div class="progress-title">🛰️ Satellite Data Availability (Oct-Jul)</div>
             <div class="month-grid" id="monthGrid">
                 <div class="month-item" id="month-Oct">Oct</div>
@@ -834,12 +834,12 @@
             
             // Show loading, hide others
             document.getElementById('loading').classList.add('active');
-            document.getElementById('progressContainer').classList.add('active');
+            document.getElementById('progressContainer').classList.remove('hidden');
             document.getElementById('result').classList.remove('active');
             document.getElementById('error').classList.remove('active');
             document.getElementById('submitBtn').disabled = true;
             
-            // Reset progress display
+            // Reset progress display (make boxes gray again)
             resetProgress();
             
             try {
@@ -899,6 +899,7 @@
             } finally {
                 document.getElementById('loading').classList.remove('active');
                 document.getElementById('submitBtn').disabled = false;
+                // Keep progress container visible to show data availability
             }
         });
     </script>
