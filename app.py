@@ -465,6 +465,49 @@ def get_mapbiomas():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@app.route('/api/mapbiomas-tiles/<int:year>')
+def get_mapbiomas_tiles(year):
+    """Get MapBiomas tile URL for the year"""
+    try:
+        # Initialize classifier if needed (to access GEE)
+        clf = init_classifier()
+        
+        # Load MapBiomas classification
+        mapbiomas = ee.Image('projects/mapbiomas-public/assets/brazil/lulc/collection10/mapbiomas_brazil_collection10_integration_v2')
+        classification = mapbiomas.select(f'classification_{year}')
+        
+        # Create palette for our 7 classes (gray for rest)
+        # Classes: 15=Pasture, 20=Sugar_Cane, 39=Soybean, 40=Rice, 41=Other_Temp, 46=Coffee, 47=Citrus
+        palette = ['cccccc'] * 63  # Gray for all
+        palette[15] = 'FFD700'  # Pasture - Gold
+        palette[20] = 'FF0000'  # Sugar Cane - Red
+        palette[39] = '0066FF'  # Soybean - Blue
+        palette[40] = '00CC00'  # Rice - Green
+        palette[41] = 'FF6600'  # Other Temp - Orange
+        palette[46] = '8B0000'  # Coffee - Dark Red
+        palette[47] = '00FFFF'  # Citrus - Cyan
+        
+        # Visualize
+        vis_params = {
+            'min': 0,
+            'max': 62,
+            'palette': palette
+        }
+        
+        # Get tile URL
+        map_id = classification.visualize(**vis_params).getMapId()
+        tile_url = map_id['tile_fetcher'].url_format
+        
+        return jsonify({
+            'success': True,
+            'tile_url': tile_url,
+            'year': year
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @app.route('/health')
 def health():
     """Health check endpoint"""

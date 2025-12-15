@@ -335,7 +335,55 @@
         
         #map {
             width: 100%;
-            height: 400px;
+            height: 500px;
+        }
+        
+        select {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 1em;
+            background: white;
+            cursor: pointer;
+            transition: border-color 0.3s;
+        }
+        
+        select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .legend {
+            position: absolute;
+            bottom: 20px;
+            right: 10px;
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            z-index: 1000;
+            font-size: 0.85em;
+        }
+        
+        .legend-title {
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #333;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 5px 0;
+        }
+        
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 3px;
+            margin-right: 8px;
+            border: 1px solid #ddd;
         }
         
         .map-info {
@@ -388,6 +436,19 @@
         <p class="subtitle">Identify crop types in Brazil using satellite imagery</p>
         
         <form id="predictForm">
+            <div class="form-group">
+                <label for="stateSelect">🗺️ Select State (Optional)</label>
+                <select id="stateSelect" onchange="fillStateLocation()">
+                    <option value="">-- Choose a state --</option>
+                    <option value="-13.0,-56.0,Mato Grosso">Mato Grosso - #1 Soybean</option>
+                    <option value="-21.5,-50.5,São Paulo">São Paulo - #1 Sugar Cane</option>
+                    <option value="-25.5,-50.5,Paraná">Paraná - Soybean & Sugar Cane</option>
+                    <option value="-19.5,-44.0,Minas Gerais">Minas Gerais - #1 Coffee</option>
+                    <option value="-30.0,-53.0,Rio Grande do Sul">Rio Grande do Sul - #1 Rice</option>
+                    <option value="-16.0,-49.5,Goiás">Goiás - Soybean & Sugar Cane</option>
+                </select>
+            </div>
+            
             <div class="row">
                 <div class="form-group">
                     <label for="lat">Latitude</label>
@@ -402,18 +463,18 @@
             
             <div class="form-group">
                 <label for="year">Year</label>
-                <input type="number" id="year" min="2015" max="2024" placeholder="2023" required>
+                <input type="number" id="year" min="2015" max="2024" value="2023" onchange="loadMapBiomasTiles(this.value)" required>
             </div>
             
             <button type="submit" id="submitBtn">🚀 Predict Crop Type</button>
         </form>
         
         <div class="examples">
-            <div class="examples-title">📍 Try these locations:</div>
-            <span class="example-btn" onclick="fillExample(-12.5, -55.7, 2023)">Soybean Region</span>
+            <div class="examples-title">📍 Try top crop regions:</div>
+            <span class="example-btn" onclick="fillExample(-13.0, -56.0, 2023)">Soybean Belt</span>
             <span class="example-btn" onclick="fillExample(-21.5, -50.5, 2023)">Sugar Cane</span>
-            <span class="example-btn" onclick="fillExample(-21.2, -45.0, 2023)">Coffee</span>
-            <span class="example-btn" onclick="fillExample(-30.0, -51.0, 2023)">Rice</span>
+            <span class="example-btn" onclick="fillExample(-15.0, -48.0, 2023)">Pasture</span>
+            <span class="example-btn" onclick="fillExample(-21.0, -47.5, 2023)">Citrus</span>
         </div>
         
         <div class="loading" id="loading">
@@ -456,7 +517,39 @@
         </div>
         
         <div class="map-container">
-            <div id="map"></div>
+            <div id="map">
+                <div class="legend">
+                    <div class="legend-title">Crop Classes</div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #FFD700;"></div>
+                        <span>Pasture</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #FF0000;"></div>
+                        <span>Sugar Cane</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #0066FF;"></div>
+                        <span>Soybean</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #00CC00;"></div>
+                        <span>Rice</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #FF6600;"></div>
+                        <span>Other Crops</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #8B0000;"></div>
+                        <span>Coffee</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #00FFFF;"></div>
+                        <span>Citrus</span>
+                    </div>
+                </div>
+            </div>
             <div class="map-info">
                 <strong>🗺️ Interactive Map:</strong> Click anywhere to see MapBiomas ground truth
                 <div id="groundTruth" style="margin-top: 10px; display: none;">
@@ -494,6 +587,35 @@
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap contributors'
         }).addTo(map);
+        
+        // MapBiomas overlay layer (will be loaded dynamically)
+        let mapbiomasLayer = null;
+        
+        // Load MapBiomas tiles
+        async function loadMapBiomasTiles(year) {
+            try {
+                const response = await fetch(`/api/mapbiomas-tiles/${year}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Remove old layer if exists
+                    if (mapbiomasLayer) {
+                        map.removeLayer(mapbiomasLayer);
+                    }
+                    
+                    // Add new MapBiomas layer
+                    mapbiomasLayer = L.tileLayer(data.tile_url, {
+                        attribution: 'MapBiomas Collection 10',
+                        opacity: 0.7
+                    }).addTo(map);
+                }
+            } catch (error) {
+                console.error('Failed to load MapBiomas tiles:', error);
+            }
+        }
+        
+        // Load default year (2023)
+        loadMapBiomasTiles(2023);
         
         // Marker for clicked location
         let clickMarker = null;
@@ -538,10 +660,25 @@
             }
         });
     
+        function fillStateLocation() {
+            const select = document.getElementById('stateSelect');
+            const value = select.value;
+            if (value) {
+                const [lat, lon, stateName] = value.split(',');
+                document.getElementById('lat').value = lat;
+                document.getElementById('lon').value = lon;
+                document.getElementById('year').value = document.getElementById('year').value || 2023;
+                
+                // Center map on state
+                map.setView([parseFloat(lat), parseFloat(lon)], 7);
+            }
+        }
+        
         function fillExample(lat, lon, year) {
             document.getElementById('lat').value = lat;
             document.getElementById('lon').value = lon;
             document.getElementById('year').value = year;
+            document.getElementById('stateSelect').value = '';
             
             // Center map on example location
             map.setView([lat, lon], 10);
