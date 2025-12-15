@@ -787,7 +787,7 @@
             historyList.innerHTML = itemsToShow.map((item, index) => `
                 <div class="history-item" onclick="loadFromHistory(${index})">
                     <div>
-                        <div class="history-location">📍 ${item.lat}, ${item.lon} (${item.year})</div>
+                        <div class="history-location">📍 ${item.lat}, ${item.lon} (${item.year}) ${!item.allProbabilities ? '<span style="font-size: 0.75em; color: #f57c00;">⚠️ partial</span>' : ''}</div>
                         <div class="history-result">${item.prediction} - ${item.confidence}%</div>
                     </div>
                     <div style="color: #999; font-size: 0.8em;">
@@ -830,7 +830,29 @@
             document.getElementById('year').value = item.year;
             map.setView([parseFloat(item.lat), parseFloat(item.lon)], 10);
             
-            // Display the full prediction result
+            // Check if this is an old history item without full data
+            if (!item.allProbabilities) {
+                // Show basic info only
+                document.getElementById('cropName').textContent = item.prediction.replace('_', ' ');
+                document.getElementById('confidence').innerHTML = `Confidence: ${item.confidence}%<br><small style="color: #f57c00;">⚠️ Full details not available for older predictions. Click "Predict Crop Type" to get complete analysis.</small>`;
+                
+                // Show placeholder message for probabilities
+                document.getElementById('probabilities').innerHTML = `
+                    <div style="text-align: center; padding: 30px; color: #999;">
+                        <p>📊 Detailed probability breakdown not available</p>
+                        <p style="font-size: 0.9em;">Click "🚀 Predict Crop Type" to run a new analysis with full details</p>
+                    </div>
+                `;
+                
+                // Show result panel
+                document.getElementById('result').classList.add('active');
+                
+                // Scroll to result
+                document.getElementById('result').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                return;
+            }
+            
+            // Display the full prediction result (for items with complete data)
             document.getElementById('cropName').textContent = item.prediction.replace('_', ' ');
             document.getElementById('confidence').textContent = `Confidence: ${item.confidence}%`;
             
@@ -841,23 +863,21 @@
             }
             
             // Show all probabilities
-            if (item.allProbabilities) {
-                const probsHtml = Object.entries(item.allProbabilities)
-                    .sort((a, b) => b[1] - a[1])
-                    .map(([name, prob]) => `
-                        <div class="prob-item">
-                            <div class="prob-label">
-                                <span>${name.replace('_', ' ')}</span>
-                                <span>${(prob * 100).toFixed(1)}%</span>
-                            </div>
-                            <div class="prob-bar">
-                                <div class="prob-fill" style="width: ${prob * 100}%"></div>
-                            </div>
+            const probsHtml = Object.entries(item.allProbabilities)
+                .sort((a, b) => b[1] - a[1])
+                .map(([name, prob]) => `
+                    <div class="prob-item">
+                        <div class="prob-label">
+                            <span>${name.replace('_', ' ')}</span>
+                            <span>${(prob * 100).toFixed(1)}%</span>
                         </div>
-                    `).join('');
-                
-                document.getElementById('probabilities').innerHTML = probsHtml;
-            }
+                        <div class="prob-bar">
+                            <div class="prob-fill" style="width: ${prob * 100}%"></div>
+                        </div>
+                    </div>
+                `).join('');
+            
+            document.getElementById('probabilities').innerHTML = probsHtml;
             
             // Show result panel
             document.getElementById('result').classList.add('active');
