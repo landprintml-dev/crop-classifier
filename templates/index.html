@@ -289,37 +289,6 @@
             display: block;
         }
         
-        .examples {
-            margin-top: 25px;
-            padding: 20px;
-            background: #f0f4ff;
-            border-radius: 10px;
-        }
-        
-        .examples-title {
-            font-weight: 600;
-            color: #333;
-            margin-bottom: 12px;
-        }
-        
-        .example-btn {
-            display: inline-block;
-            padding: 8px 15px;
-            margin: 5px;
-            background: white;
-            border: 2px solid #667eea;
-            color: #667eea;
-            border-radius: 20px;
-            font-size: 0.85em;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        
-        .example-btn:hover {
-            background: #667eea;
-            color: white;
-        }
-        
         .info {
             margin-top: 10px;
             font-size: 0.85em;
@@ -453,12 +422,12 @@
             <div class="row">
                 <div class="form-group">
                     <label for="lat">Latitude</label>
-                    <input type="number" id="lat" step="0.0001" placeholder="-20.0502" required>
+                    <input type="number" id="lat" step="any" placeholder="-20.0502" required>
                 </div>
                 
                 <div class="form-group">
                     <label for="lon">Longitude</label>
-                    <input type="number" id="lon" step="0.0001" placeholder="-48.3965" required>
+                    <input type="number" id="lon" step="any" placeholder="-48.3965" required>
                 </div>
             </div>
             
@@ -469,14 +438,6 @@
             
             <button type="submit" id="submitBtn">🚀 Predict Crop Type</button>
         </form>
-        
-        <div class="examples">
-            <div class="examples-title">📍 Try top crop regions:</div>
-            <span class="example-btn" onclick="fillExample(-13.0, -56.0, 2023)">Soybean Belt</span>
-            <span class="example-btn" onclick="fillExample(-21.5, -50.5, 2023)">Sugar Cane</span>
-            <span class="example-btn" onclick="fillExample(-15.0, -48.0, 2023)">Pasture</span>
-            <span class="example-btn" onclick="fillExample(-21.0, -47.5, 2023)">Citrus</span>
-        </div>
         
         <div class="loading" id="loading">
             <div class="spinner"></div>
