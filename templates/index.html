@@ -553,7 +553,10 @@
             <div class="map-info">
                 <strong>🗺️ Interactive Map:</strong> Click anywhere to see MapBiomas ground truth
                 <div id="groundTruth" style="margin-top: 10px; display: none;">
-                    <div style="font-size: 0.9em; color: #666;">Clicked: <span id="clickedCoords"></span></div>
+                    <div style="font-size: 0.9em; color: #666;">
+                        Clicked: <span id="clickedCoords"></span> 
+                        <span style="margin-left: 10px; color: #667eea; font-weight: 600;">Year: <span id="groundTruthYear"></span></span>
+                    </div>
                     <div style="font-size: 1.1em; font-weight: bold; color: #333; margin-top: 5px;">
                         MapBiomas Class: <span id="mapbiomasClass"></span>
                     </div>
@@ -632,8 +635,9 @@
             }
             clickMarker = L.marker([e.latlng.lat, e.latlng.lng]).addTo(map);
             
-            // Update clicked coordinates display
+            // Update clicked coordinates and year display
             document.getElementById('clickedCoords').textContent = `${lat}, ${lon}`;
+            document.getElementById('groundTruthYear').textContent = year;
             document.getElementById('groundTruth').style.display = 'block';
             document.getElementById('mapbiomasClass').textContent = '⏳ Fetching MapBiomas data...';
             
