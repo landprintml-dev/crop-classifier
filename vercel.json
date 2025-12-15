@@ -1,5 +1,4 @@
 {
-  "version": 2,
   "builds": [
     {
       "src": "app.py",
@@ -14,14 +13,6 @@
       "src": "/(.*)",
       "dest": "app.py"
     }
-  ],
-  "functions": {
-    "app.py": {
-      "maxDuration": 60
-    }
-  },
-  "env": {
-    "EARTHENGINE_TOKEN": "@earthengine_token"
-  }
+  ]
 }
 
