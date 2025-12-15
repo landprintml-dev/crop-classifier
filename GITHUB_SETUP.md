@@ -19,7 +19,7 @@ git init
 git add .
 git commit -m "Crop Classifier Web App"
 
-# Use Personal Access Token for authentication (more secure)
+# Use Personal Access Token for authentication (more secure)image.png
 # 1. Create token at: https://github.com/settings/tokens
 # 2. When pushing, use token as password:
 git remote add origin https://github.com/YOUR_USERNAME/crop-classifier.git

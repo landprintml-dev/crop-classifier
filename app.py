@@ -412,6 +412,59 @@ def predict():
         return jsonify({'success': False, 'error': f'Prediction failed: {str(e)}'}), 500
 
 
+@app.route('/api/mapbiomas', methods=['POST'])
+def get_mapbiomas():
+    """API endpoint to fetch MapBiomas ground truth"""
+    try:
+        data = request.get_json()
+        
+        # Validate input
+        lat = float(data.get('lat'))
+        lon = float(data.get('lon'))
+        year = int(data.get('year'))
+        
+        # Initialize classifier if needed (to access GEE)
+        clf = init_classifier()
+        
+        # Create point geometry
+        point = ee.Geometry.Point([lon, lat])
+        
+        # Load MapBiomas classification for the year
+        mapbiomas = ee.Image('projects/mapbiomas-public/assets/brazil/lulc/collection10/mapbiomas_brazil_collection10_integration_v2')
+        classification = mapbiomas.select(f'classification_{year}')
+        
+        # Sample at point
+        sample = classification.sample(point, 30).first()
+        result = sample.getInfo()
+        
+        if result and result.get('properties'):
+            class_code = result['properties'].get(f'classification_{year}')
+            
+            # MapBiomas class names
+            class_names = {
+                15: 'Pasture', 20: 'Sugar_Cane', 39: 'Soybean', 40: 'Rice',
+                41: 'Other_Temporary_Crops', 46: 'Coffee', 47: 'Citrus',
+                1: 'Forest', 3: 'Forest Formation', 24: 'Urban Area',
+                26: 'Water', 33: 'River/Lake/Ocean'
+            }
+            
+            class_name = class_names.get(class_code, f'Class {class_code}')
+            
+            return jsonify({
+                'success': True,
+                'class_code': class_code,
+                'class_name': class_name,
+                'lat': lat,
+                'lon': lon,
+                'year': year
+            })
+        else:
+            return jsonify({'success': False, 'error': 'No data at this location'})
+            
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @app.route('/health')
 def health():
     """Health check endpoint"""

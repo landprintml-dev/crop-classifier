@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🌾 Crop Classification - Brazil</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
         * {
             margin: 0;
@@ -130,6 +132,65 @@
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
+        }
+        
+        .progress-container {
+            display: none;
+            margin-top: 20px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .progress-container.active {
+            display: block;
+        }
+        
+        .progress-title {
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.1em;
+        }
+        
+        .month-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .month-item {
+            padding: 8px;
+            text-align: center;
+            border-radius: 6px;
+            font-size: 0.9em;
+            background: #e0e0e0;
+            color: #666;
+            transition: all 0.3s;
+        }
+        
+        .month-item.success {
+            background: #d4edda;
+            color: #155724;
+            font-weight: 600;
+        }
+        
+        .month-item.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .month-item.loading {
+            background: #cce5ff;
+            color: #004085;
+            animation: pulse 1s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
         }
         
         .result {
@@ -264,6 +325,61 @@
             font-size: 0.85em;
             color: #999;
         }
+        
+        .map-container {
+            margin-top: 30px;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        
+        #map {
+            width: 100%;
+            height: 400px;
+        }
+        
+        .map-info {
+            background: #f8f9fa;
+            padding: 15px;
+            border-top: 2px solid #667eea;
+        }
+        
+        .ground-truth {
+            margin-top: 15px;
+            padding: 15px;
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            border-radius: 8px;
+        }
+        
+        .ground-truth h3 {
+            margin: 0 0 10px 0;
+            color: #856404;
+            font-size: 1.1em;
+        }
+        
+        .comparison {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .comparison-box {
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        
+        .model-pred {
+            background: #e7f3ff;
+            border: 2px solid #667eea;
+        }
+        
+        .mapbiomas-truth {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+        }
     </style>
 </head>
 <body>
@@ -306,6 +422,26 @@
             <p class="info">This may take 30-60 seconds</p>
         </div>
         
+        <div class="progress-container" id="progressContainer">
+            <div class="progress-title">🛰️ Fetching 10-Month Time-Series Data</div>
+            <div class="month-grid" id="monthGrid">
+                <div class="month-item" id="month-Oct">Oct</div>
+                <div class="month-item" id="month-Nov">Nov</div>
+                <div class="month-item" id="month-Dec">Dec</div>
+                <div class="month-item" id="month-Jan">Jan</div>
+                <div class="month-item" id="month-Feb">Feb</div>
+                <div class="month-item" id="month-Mar">Mar</div>
+                <div class="month-item" id="month-Apr">Apr</div>
+                <div class="month-item" id="month-May">May</div>
+                <div class="month-item" id="month-Jun">Jun</div>
+                <div class="month-item" id="month-Jul">Jul</div>
+            </div>
+            <div class="info" style="margin-top: 15px;">
+                <span style="color: #155724;">✅ Data available</span> &nbsp;|&nbsp;
+                <span style="color: #721c24;">❌ No data</span>
+            </div>
+        </div>
+        
         <div class="error" id="error"></div>
         
         <div class="result" id="result">
@@ -318,13 +454,131 @@
                 <div id="probabilities"></div>
             </div>
         </div>
+        
+        <div class="map-container">
+            <div id="map"></div>
+            <div class="map-info">
+                <strong>🗺️ Interactive Map:</strong> Click anywhere to see MapBiomas ground truth
+                <div id="groundTruth" style="margin-top: 10px; display: none;">
+                    <div style="font-size: 0.9em; color: #666;">Clicked: <span id="clickedCoords"></span></div>
+                    <div style="font-size: 1.1em; font-weight: bold; color: #333; margin-top: 5px;">
+                        MapBiomas Class: <span id="mapbiomasClass"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
     
     <script>
+        // MapBiomas class names
+        const mapbiomasClasses = {
+            0: 'No Data', 1: 'Forest', 3: 'Forest Formation', 4: 'Savanna Formation',
+            5: 'Mangrove', 6: 'Flooded Forest', 9: 'Forest Plantation',
+            10: 'Non Forest Natural Formation', 11: 'Wetland', 12: 'Grassland',
+            13: 'Other Non Forest Formation', 14: 'Farming', 15: 'Pasture',
+            18: 'Agriculture', 19: 'Temporary Crop', 20: 'Sugar Cane',
+            21: 'Mosaic of Uses', 22: 'Non Vegetated Area', 23: 'Beach, Dune and Sand Spot',
+            24: 'Urban Area', 25: 'Other Non Vegetated Area', 26: 'Water',
+            27: 'Non Observed', 29: 'Rocky Outcrop', 30: 'Mining',
+            31: 'Aquaculture', 32: 'Salt Flat', 33: 'River, Lake and Ocean',
+            35: 'Palm Oil', 36: 'Perennial Crop', 39: 'Soybean', 40: 'Rice',
+            41: 'Other Temporary Crops', 46: 'Coffee', 47: 'Citrus',
+            48: 'Other Perennial Crops', 49: 'Wooded Sandbank Vegetation',
+            50: 'Herbaceous Sandbank Vegetation', 62: 'Cotton'
+        };
+        
+        // Initialize map
+        const map = L.map('map').setView([-15.0, -55.0], 5);
+        
+        // Add base layer
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+        
+        // Marker for clicked location
+        let clickMarker = null;
+        
+        // Handle map clicks
+        map.on('click', async function(e) {
+            const lat = e.latlng.lat.toFixed(6);
+            const lon = e.latlng.lng.toFixed(6);
+            const year = document.getElementById('year').value || 2023;
+            
+            // Update marker
+            if (clickMarker) {
+                map.removeLayer(clickMarker);
+            }
+            clickMarker = L.marker([e.latlng.lat, e.latlng.lng]).addTo(map);
+            
+            // Update clicked coordinates display
+            document.getElementById('clickedCoords').textContent = `${lat}, ${lon}`;
+            document.getElementById('groundTruth').style.display = 'block';
+            document.getElementById('mapbiomasClass').textContent = '⏳ Fetching MapBiomas data...';
+            
+            // Fetch MapBiomas ground truth
+            try {
+                const response = await fetch('/api/mapbiomas', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ lat: parseFloat(lat), lon: parseFloat(lon), year: parseInt(year) })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    document.getElementById('mapbiomasClass').innerHTML = 
+                        `<strong style="color: #ffc107;">${data.class_name}</strong> (Code: ${data.class_code})`;
+                } else {
+                    document.getElementById('mapbiomasClass').textContent = 
+                        '❌ ' + (data.error || 'Failed to fetch data');
+                }
+            } catch (error) {
+                document.getElementById('mapbiomasClass').textContent = 
+                    '❌ Error: ' + error.message;
+            }
+        });
+    
         function fillExample(lat, lon, year) {
             document.getElementById('lat').value = lat;
             document.getElementById('lon').value = lon;
             document.getElementById('year').value = year;
+            
+            // Center map on example location
+            map.setView([lat, lon], 10);
+        }
+        
+        const months = ['Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul'];
+        
+        function simulateProgress() {
+            // Simulate month-by-month loading
+            months.forEach((month, index) => {
+                setTimeout(() => {
+                    document.getElementById(`month-${month}`).classList.add('loading');
+                }, index * 3000); // 3 seconds per month
+            });
+        }
+        
+        function updateProgress(missingMonths) {
+            // Update based on actual results
+            months.forEach(month => {
+                const elem = document.getElementById(`month-${month}`);
+                elem.classList.remove('loading');
+                if (missingMonths && missingMonths.includes(month)) {
+                    elem.classList.add('error');
+                    elem.innerHTML = `${month}<br>❌`;
+                } else {
+                    elem.classList.add('success');
+                    elem.innerHTML = `${month}<br>✅`;
+                }
+            });
+        }
+        
+        function resetProgress() {
+            months.forEach(month => {
+                const elem = document.getElementById(`month-${month}`);
+                elem.className = 'month-item';
+                elem.textContent = month;
+            });
         }
         
         document.getElementById('predictForm').addEventListener('submit', async (e) => {
@@ -336,9 +590,14 @@
             
             // Show loading, hide others
             document.getElementById('loading').classList.add('active');
+            document.getElementById('progressContainer').classList.add('active');
             document.getElementById('result').classList.remove('active');
             document.getElementById('error').classList.remove('active');
             document.getElementById('submitBtn').disabled = true;
+            
+            // Reset and start progress simulation
+            resetProgress();
+            simulateProgress();
             
             try {
                 const response = await fetch('/api/predict', {
@@ -352,10 +611,19 @@
                 const data = await response.json();
                 
                 if (data.success) {
+                    // Update progress with actual results
+                    updateProgress(data.missing_months || []);
+                    
                     // Show result
                     document.getElementById('cropName').textContent = data.predicted_class.replace('_', ' ');
                     document.getElementById('confidence').textContent = 
                         `Confidence: ${(data.confidence * 100).toFixed(1)}%`;
+                    
+                    // Show data quality info
+                    if (data.missing_months && data.missing_months.length > 0) {
+                        document.getElementById('confidence').innerHTML += 
+                            `<br><small style="color: #f57c00;">⚠️ ${data.missing_months.length} month(s) had no data</small>`;
+                    }
                     
                     // Show all probabilities
                     const probsHtml = Object.entries(data.all_probabilities)
