@@ -118,8 +118,28 @@ class GEEDataFetcher:
             # Get project ID from environment or use default
             project_id = os.environ.get('GEE_PROJECT_ID', 'landprintml')
             
-            # Try service account authentication first (for deployment)
-            if os.path.exists('gee-service-account.json'):
+            # Check if we have credentials in environment variable
+            earthengine_token = os.environ.get('EARTHENGINE_TOKEN')
+            
+            if earthengine_token:
+                # Write credentials to temporary file for GEE
+                import json
+                import tempfile
+                
+                # Create credentials directory
+                creds_dir = os.path.expanduser('~/.config/earthengine')
+                os.makedirs(creds_dir, exist_ok=True)
+                
+                # Write credentials
+                creds_path = os.path.join(creds_dir, 'credentials')
+                with open(creds_path, 'w') as f:
+                    f.write(earthengine_token)
+                
+                print(f"✅ GEE credentials written to {creds_path}")
+                ee.Initialize(project=project_id)
+                print(f"✅ GEE initialized with environment credentials (project: {project_id})")
+            elif os.path.exists('gee-service-account.json'):
+                # Try service account authentication
                 credentials = ee.ServiceAccountCredentials(
                     os.environ.get('GEE_SERVICE_ACCOUNT'),
                     'gee-service-account.json'
