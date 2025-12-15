@@ -432,8 +432,15 @@
             </div>
             
             <div class="form-group">
-                <label for="year">Year</label>
-                <input type="number" id="year" min="2015" max="2024" value="2023" onchange="loadMapBiomasTiles(this.value)" required>
+                <label for="year">Year (for map overlay)</label>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <input type="number" id="year" min="2015" max="2024" value="2023" required style="flex: 1;">
+                    <button type="button" onclick="loadMapBiomasTiles(document.getElementById('year').value)" 
+                            style="width: auto; padding: 12px 24px; margin: 0;">
+                        ✓ Apply
+                    </button>
+                </div>
+                <small style="color: #666; font-size: 0.85em;">Change year and click "Apply" to update map</small>
             </div>
             
             <button type="submit" id="submitBtn">🚀 Predict Crop Type</button>
