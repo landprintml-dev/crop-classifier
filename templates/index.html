@@ -375,6 +375,86 @@
             font-size: 1.1em;
         }
         
+        .history-container {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 15px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .history-title {
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.1em;
+        }
+        
+        .history-item {
+            padding: 12px;
+            margin: 8px 0;
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .history-item:hover {
+            border-color: #667eea;
+            transform: translateX(5px);
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+        }
+        
+        .history-location {
+            font-size: 0.9em;
+            color: #666;
+        }
+        
+        .history-result {
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .history-empty {
+            text-align: center;
+            color: #999;
+            padding: 20px;
+            font-style: italic;
+        }
+        
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #4caf50;
+            color: white;
+            padding: 15px 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            z-index: 10000;
+            animation: slideIn 0.3s ease;
+            display: none;
+        }
+        
+        .toast.active {
+            display: block;
+        }
+        
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
         .comparison {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -445,6 +525,15 @@
             
             <button type="submit" id="submitBtn">🚀 Predict Crop Type</button>
         </form>
+        
+        <div class="history-container">
+            <div class="history-title">📜 Recent Predictions</div>
+            <div id="historyList">
+                <div class="history-empty">No predictions yet. Make your first prediction above!</div>
+            </div>
+        </div>
+        
+        <div class="toast" id="toast">✓ Map updated to year <span id="toastYear"></span></div>
         
         <div class="loading" id="loading">
             <div class="spinner"></div>
@@ -580,6 +669,9 @@
                         attribution: 'MapBiomas Collection 10',
                         opacity: 0.7
                     }).addTo(map);
+                    
+                    // Show toast notification
+                    showToast(year);
                 }
             } catch (error) {
                 console.error('Failed to load MapBiomas tiles:', error);
@@ -659,6 +751,67 @@
         
         const months = ['Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul'];
         
+        // History management
+        let predictionHistory = JSON.parse(localStorage.getItem('predictionHistory') || '[]');
+        
+        function showToast(year) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toastYear').textContent = year;
+            toast.classList.add('active');
+            setTimeout(() => {
+                toast.classList.remove('active');
+            }, 3000);
+        }
+        
+        function addToHistory(lat, lon, year, prediction, confidence) {
+            const historyItem = {
+                lat: lat.toFixed(4),
+                lon: lon.toFixed(4),
+                year,
+                prediction,
+                confidence: (confidence * 100).toFixed(1),
+                timestamp: new Date().toISOString()
+            };
+            
+            predictionHistory.unshift(historyItem);
+            if (predictionHistory.length > 5) predictionHistory.pop(); // Keep last 5
+            
+            localStorage.setItem('predictionHistory', JSON.stringify(predictionHistory));
+            renderHistory();
+        }
+        
+        function renderHistory() {
+            const historyList = document.getElementById('historyList');
+            
+            if (predictionHistory.length === 0) {
+                historyList.innerHTML = '<div class="history-empty">No predictions yet. Make your first prediction above!</div>';
+                return;
+            }
+            
+            historyList.innerHTML = predictionHistory.map((item, index) => `
+                <div class="history-item" onclick="loadFromHistory(${index})">
+                    <div>
+                        <div class="history-location">📍 ${item.lat}, ${item.lon} (${item.year})</div>
+                        <div class="history-result">${item.prediction} - ${item.confidence}%</div>
+                    </div>
+                    <div style="color: #999; font-size: 0.8em;">
+                        ${new Date(item.timestamp).toLocaleTimeString()}
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        function loadFromHistory(index) {
+            const item = predictionHistory[index];
+            document.getElementById('lat').value = item.lat;
+            document.getElementById('lon').value = item.lon;
+            document.getElementById('year').value = item.year;
+            map.setView([parseFloat(item.lat), parseFloat(item.lon)], 10);
+        }
+        
+        // Load history on page load
+        renderHistory();
+        
         function simulateProgress() {
             // Simulate month-by-month loading
             months.forEach((month, index) => {
@@ -723,6 +876,9 @@
                 if (data.success) {
                     // Update progress with actual results
                     updateProgress(data.missing_months || []);
+                    
+                    // Add to history
+                    addToHistory(lat, lon, year, data.predicted_class, data.confidence);
                     
                     // Show result
                     document.getElementById('cropName').textContent = data.predicted_class.replace('_', ' ');
