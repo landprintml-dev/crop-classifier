@@ -115,18 +115,21 @@ class GEEDataFetcher:
     def __init__(self):
         """Initialize GEE connection"""
         try:
+            # Get project ID from environment or use default
+            project_id = os.environ.get('GEE_PROJECT_ID', 'landprintml')
+            
             # Try service account authentication first (for deployment)
             if os.path.exists('gee-service-account.json'):
                 credentials = ee.ServiceAccountCredentials(
                     os.environ.get('GEE_SERVICE_ACCOUNT'),
                     'gee-service-account.json'
                 )
-                ee.Initialize(credentials)
-                print("✅ GEE initialized with service account")
+                ee.Initialize(credentials, project=project_id)
+                print(f"✅ GEE initialized with service account (project: {project_id})")
             else:
                 # Fallback to default authentication (for local testing)
-                ee.Initialize()
-                print("✅ GEE initialized with default credentials")
+                ee.Initialize(project=project_id)
+                print(f"✅ GEE initialized with default credentials (project: {project_id})")
         except Exception as e:
             print(f"⚠️ GEE initialization error: {e}")
             raise
