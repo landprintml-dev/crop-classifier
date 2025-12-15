@@ -1,0 +1,5 @@
+# Google Earth Engine Service Account (optional, for production)
+GEE_SERVICE_ACCOUNT=your-service-account@your-project.iam.gserviceaccount.com
+
+# For local development, just run: earthengine authenticate
+
