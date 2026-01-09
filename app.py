@@ -50,6 +50,88 @@ class CNN1D(nn.Module):
         return self.fc2(x)
 
 
+class CNN1D_Enhanced(nn.Module):
+    """Enhanced CNN1D with skip connections, attention, and more layers"""
+    def __init__(self, n_features, n_timesteps, n_classes, dropout=0.3):
+        super().__init__()
+        # Convolutional layers
+        self.conv1 = nn.Conv1d(n_features, 256, kernel_size=7, padding=3)
+        self.bn1 = nn.BatchNorm1d(256)
+        
+        self.conv2 = nn.Conv1d(256, 512, kernel_size=5, padding=2)
+        self.bn2 = nn.BatchNorm1d(512)
+        self.conv_skip1 = nn.Conv1d(256, 512, kernel_size=1)  # Skip connection
+        
+        self.conv3 = nn.Conv1d(512, 512, kernel_size=3, padding=1)
+        self.bn3 = nn.BatchNorm1d(512)
+        
+        self.conv4 = nn.Conv1d(512, 1024, kernel_size=3, padding=1)
+        self.bn4 = nn.BatchNorm1d(1024)
+        self.conv_skip2 = nn.Conv1d(512, 1024, kernel_size=1)  # Skip connection
+        
+        self.conv5 = nn.Conv1d(1024, 1024, kernel_size=3, padding=1)
+        self.bn5 = nn.BatchNorm1d(1024)
+        
+        # Attention mechanism (1024 dim, 8 heads = 128 per head)
+        self.attention = nn.MultiheadAttention(embed_dim=1024, num_heads=8, batch_first=True, dropout=dropout)
+        
+        # Pooling
+        self.pool = nn.AdaptiveAvgPool1d(1)
+        
+        # Fully connected layers
+        self.dropout = nn.Dropout(dropout)
+        self.fc1 = nn.Linear(2048, 512)  # 2*1024 from attention
+        self.fc2 = nn.Linear(512, 256)
+        self.fc3 = nn.Linear(256, 128)
+        self.fc4 = nn.Linear(128, n_classes)
+        self.relu = nn.ReLU()
+        
+    def forward(self, x):
+        # Transpose: (batch, timesteps, features) -> (batch, features, timesteps)
+        x = x.transpose(1, 2)
+        
+        # Conv block 1
+        x1 = self.relu(self.bn1(self.conv1(x)))
+        
+        # Conv block 2 with skip connection
+        x2 = self.relu(self.bn2(self.conv2(x1)))
+        skip1 = self.conv_skip1(x1)
+        x2 = x2 + skip1  # Skip connection
+        
+        # Conv block 3
+        x3 = self.relu(self.bn3(self.conv3(x2)))
+        
+        # Conv block 4 with skip connection
+        x4 = self.relu(self.bn4(self.conv4(x3)))
+        skip2 = self.conv_skip2(x3)
+        x4 = x4 + skip2  # Skip connection
+        
+        # Conv block 5
+        x5 = self.relu(self.bn5(self.conv5(x4)))
+        
+        # Transpose back for attention: (batch, features, timesteps) -> (batch, timesteps, features)
+        x5 = x5.transpose(1, 2)
+        
+        # Self-attention
+        attn_out, _ = self.attention(x5, x5, x5)
+        
+        # Concatenate original and attention output
+        x_concat = torch.cat([x5, attn_out], dim=2)  # (batch, timesteps, 2048)
+        
+        # Global average pooling
+        x_pooled = self.pool(x_concat.transpose(1, 2)).squeeze(-1)  # (batch, 2048)
+        
+        # Fully connected layers
+        x = self.dropout(x_pooled)
+        x = self.relu(self.fc1(x))
+        x = self.dropout(x)
+        x = self.relu(self.fc2(x))
+        x = self.dropout(x)
+        x = self.relu(self.fc3(x))
+        x = self.dropout(x)
+        return self.fc4(x)
+
+
 class BiLSTM(nn.Module):
     def __init__(self, n_features, n_timesteps, n_classes, hidden_size=128, n_layers=2, dropout=0.3):
         super().__init__()
@@ -277,7 +359,9 @@ class CropClassifier:
         
         # Create model
         model_name_lower = self.model_name.lower()
-        if 'cnn' in model_name_lower:
+        if 'cnn1d_enhanced' in model_name_lower or 'enhanced' in model_name_lower:
+            self.model = CNN1D_Enhanced(self.n_features, self.n_timesteps, self.n_classes)
+        elif 'cnn' in model_name_lower:
             self.model = CNN1D(self.n_features, self.n_timesteps, self.n_classes)
         elif 'lstm' in model_name_lower:
             self.model = BiLSTM(self.n_features, self.n_timesteps, self.n_classes)
