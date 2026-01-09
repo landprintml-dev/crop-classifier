@@ -262,6 +262,7 @@ class CropClassifier:
     def __init__(self, model_dir='.', model_file='crop_classifier_best.pt'):
         """Load model and initialize GEE"""
         self.model_dir = Path(model_dir)
+        self.model_file = model_file
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         
         # Load model
@@ -363,46 +364,32 @@ class CropClassifier:
 
 # Global classifier instances (one per model)
 classifiers = {}
-current_model = 'crop_classifier_best.pt'
 
-def init_classifier(model_file=None):
-    """Initialize classifier on first request"""
-    global classifiers, current_model
+def init_classifier(model_name='best'):
+    """Initialize classifier on first request for a specific model"""
+    global classifiers
     
-    if model_file is None:
-        model_file = current_model
+    # Map model names to files
+    model_files = {
+        'best': 'crop_classifier_best.pt',
+        'best_2': 'crop_classifier_best_2.pt'
+    }
     
-    # Check if we already have this model loaded
-    if model_file not in classifiers:
-        classifiers[model_file] = CropClassifier('.', model_file=model_file)
+    if model_name not in model_files:
+        model_name = 'best'  # Default fallback
     
-    return classifiers[model_file]
+    if model_name not in classifiers:
+        model_file = model_files[model_name]
+        print(f"🔄 Initializing model: {model_name} ({model_file})")
+        classifiers[model_name] = CropClassifier('.', model_file=model_file)
+    
+    return classifiers[model_name]
 
 
 @app.route('/')
 def index():
     """Serve the main page"""
     return render_template('index.html')
-
-
-@app.route('/api/models', methods=['GET'])
-def get_models():
-    """Get list of available models"""
-    models = [
-        {'file': 'crop_classifier_best.pt', 'name': 'Best Model (Default)', 'type': 'Auto'},
-        {'file': 'best_transformer.pt', 'name': 'Transformer', 'type': 'Transformer'},
-        {'file': 'best_cnn1d.pt', 'name': 'CNN1D', 'type': 'CNN'},
-        {'file': 'best_cnn1d_improved.pt', 'name': 'CNN1D Improved', 'type': 'CNN'},
-        {'file': 'best_bilstm.pt', 'name': 'BiLSTM', 'type': 'LSTM'}
-    ]
-    
-    # Check which models actually exist
-    available = []
-    for model in models:
-        if (Path('.') / model['file']).exists():
-            available.append(model)
-    
-    return jsonify({'models': available})
 
 
 @app.route('/api/predict', methods=['POST'])
@@ -415,7 +402,7 @@ def predict():
         lat = float(data.get('lat'))
         lon = float(data.get('lon'))
         year = int(data.get('year'))
-        model_file = data.get('model', 'crop_classifier_best.pt')
+        model_name = data.get('model', 'best')  # Default to 'best'
         
         if not (-90 <= lat <= 90):
             return jsonify({'success': False, 'error': 'Latitude must be between -90 and 90'}), 400
@@ -426,12 +413,14 @@ def predict():
         if not (2015 <= year <= 2024):
             return jsonify({'success': False, 'error': 'Year must be between 2015 and 2024'}), 400
         
-        # Initialize classifier with selected model
-        clf = init_classifier(model_file)
+        # Initialize classifier for selected model
+        clf = init_classifier(model_name)
         
         # Make prediction
         result = clf.predict_location(lat, lon, year)
-        result['model_used'] = model_file
+        
+        # Add model info to result
+        result['model_used'] = model_name
         
         return jsonify(result)
         
@@ -540,7 +529,11 @@ def get_mapbiomas_tiles(year):
 @app.route('/health')
 def health():
     """Health check endpoint"""
-    return jsonify({'status': 'healthy', 'model_loaded': classifier is not None})
+    return jsonify({
+        'status': 'healthy', 
+        'models_loaded': list(classifiers.keys()),
+        'available_models': ['best', 'best_2']
+    })
 
 
 if __name__ == '__main__':
