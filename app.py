@@ -259,14 +259,14 @@ class CropClassifier:
     MONTHS = ['Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul']
     FEATURES = ['blue', 'green', 'red', 'nir', 'swir1', 'swir2', 'ndvi', 'ndwi', 'evi']
     
-    def __init__(self, model_dir='.'):
+    def __init__(self, model_dir='.', model_file='crop_classifier_best.pt'):
         """Load model and initialize GEE"""
         self.model_dir = Path(model_dir)
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         
         # Load model
-        print("📦 Loading model...")
-        checkpoint = torch.load(self.model_dir / 'crop_classifier_best.pt', map_location=self.device)
+        print(f"📦 Loading model: {model_file}...")
+        checkpoint = torch.load(self.model_dir / model_file, map_location=self.device)
         
         self.class_names = checkpoint.get('class_names', checkpoint.get('classes', []))
         self.n_classes = checkpoint.get('n_classes', len(self.class_names))
@@ -361,21 +361,48 @@ class CropClassifier:
 # FLASK ROUTES
 # ============================================================
 
-# Global classifier instance
-classifier = None
+# Global classifier instances (one per model)
+classifiers = {}
+current_model = 'crop_classifier_best.pt'
 
-def init_classifier():
+def init_classifier(model_file=None):
     """Initialize classifier on first request"""
-    global classifier
-    if classifier is None:
-        classifier = CropClassifier('.')
-    return classifier
+    global classifiers, current_model
+    
+    if model_file is None:
+        model_file = current_model
+    
+    # Check if we already have this model loaded
+    if model_file not in classifiers:
+        classifiers[model_file] = CropClassifier('.', model_file=model_file)
+    
+    return classifiers[model_file]
 
 
 @app.route('/')
 def index():
     """Serve the main page"""
     return render_template('index.html')
+
+
+@app.route('/api/models', methods=['GET'])
+def get_models():
+    """Get list of available models"""
+    models = [
+        {'file': 'crop_classifier_best.pt', 'name': 'Best Model (Default)', 'type': 'Auto'},
+        {'file': 'best_transformer.pt', 'name': 'Transformer', 'type': 'Transformer'},
+        {'file': 'best_cnn1d.pt', 'name': 'CNN1D', 'type': 'CNN'},
+        {'file': 'best_cnn1d_improved.pt', 'name': 'CNN1D Improved', 'type': 'CNN'},
+        {'file': 'best_bilstm.pt', 'name': 'BiLSTM', 'type': 'LSTM'}
+    ]
+    
+    # Check which models actually exist
+    available = []
+    for model in models:
+        if (Path('.') / model['file']).exists():
+            available.append(model)
+    
+    return jsonify({'models': available})
 
 
 @app.route('/api/predict', methods=['POST'])
@@ -388,6 +415,7 @@ def predict():
         lat = float(data.get('lat'))
         lon = float(data.get('lon'))
         year = int(data.get('year'))
+        model_file = data.get('model', 'crop_classifier_best.pt')
         
         if not (-90 <= lat <= 90):
             return jsonify({'success': False, 'error': 'Latitude must be between -90 and 90'}), 400
@@ -398,11 +426,12 @@ def predict():
         if not (2015 <= year <= 2024):
             return jsonify({'success': False, 'error': 'Year must be between 2015 and 2024'}), 400
         
-        # Initialize classifier
-        clf = init_classifier()
+        # Initialize classifier with selected model
+        clf = init_classifier(model_file)
         
         # Make prediction
         result = clf.predict_location(lat, lon, year)
+        result['model_used'] = model_file
         
         return jsonify(result)
         

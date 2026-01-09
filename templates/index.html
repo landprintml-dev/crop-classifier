@@ -500,17 +500,29 @@
                 </div>
             </div>
             
-            <div class="form-group">
-                <label for="year">Year (for map overlay)</label>
-                <div style="display: flex; gap: 10px; align-items: center;">
-                    <input type="number" id="year" min="2015" max="2024" value="2023" required style="flex: 1;">
-                    <button type="button" onclick="loadMapBiomasTiles(document.getElementById('year').value)" 
-                            style="width: auto; padding: 12px 24px; margin: 0;">
-                        ✓ Apply
-                    </button>
-                </div>
-                <small style="color: #666; font-size: 0.85em;">Change year and click "Apply" to update map</small>
+        <div class="form-group">
+            <label for="year">Year (for map overlay)</label>
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <input type="number" id="year" min="2015" max="2024" value="2023" required style="flex: 1;">
+                <button type="button" onclick="loadMapBiomasTiles(document.getElementById('year').value)" 
+                        style="width: auto; padding: 12px 24px; margin: 0;">
+                    ✓ Apply
+                </button>
             </div>
+            <small style="color: #666; font-size: 0.85em;">Change year and click "Apply" to update map</small>
+        </div>
+        
+        <div class="form-group">
+            <label for="modelSelect">🤖 Model Selection</label>
+            <select id="modelSelect" required>
+                <option value="crop_classifier_best.pt">Best Model (Default)</option>
+                <option value="best_transformer.pt">Transformer</option>
+                <option value="best_cnn1d.pt">CNN1D</option>
+                <option value="best_cnn1d_improved.pt">CNN1D Improved</option>
+                <option value="best_bilstm.pt">BiLSTM</option>
+            </select>
+            <small style="color: #666; font-size: 0.85em;">Choose which deep learning model to use for prediction</small>
+        </div>
             
             <button type="submit" id="submitBtn">🚀 Predict Crop Type</button>
         </form>
@@ -753,7 +765,10 @@
             }, 3000);
         }
         
-        function addToHistory(lat, lon, year, prediction, confidence, allProbabilities, missingMonths) {
+        function addToHistory(lat, lon, year, prediction, confidence, allProbabilities, missingMonths, modelFile) {
+            const modelSelect = document.getElementById('modelSelect');
+            const modelName = modelSelect.options[modelSelect.selectedIndex].text;
+            
             const historyItem = {
                 lat: lat.toFixed(4),
                 lon: lon.toFixed(4),
@@ -762,6 +777,8 @@
                 confidence: (confidence * 100).toFixed(1),
                 allProbabilities,
                 missingMonths: missingMonths || [],
+                modelFile: modelFile || 'crop_classifier_best.pt',
+                modelName: modelName,
                 timestamp: new Date().toISOString()
             };
             
@@ -787,7 +804,11 @@
             historyList.innerHTML = itemsToShow.map((item, index) => `
                 <div class="history-item" onclick="loadFromHistory(${index})">
                     <div>
-                        <div class="history-location">📍 ${item.lat}, ${item.lon} (${item.year}) ${!item.allProbabilities ? '<span style="font-size: 0.75em; color: #f57c00;">⚠️ partial</span>' : ''}</div>
+                        <div class="history-location">
+                            📍 ${item.lat}, ${item.lon} (${item.year}) 
+                            ${!item.allProbabilities ? '<span style="font-size: 0.75em; color: #f57c00;">⚠️ partial</span>' : ''}
+                            ${item.modelName ? `<span style="font-size: 0.75em; color: #4568DC;">🤖 ${item.modelName}</span>` : ''}
+                        </div>
                         <div class="history-result">${item.prediction} - ${item.confidence}%</div>
                     </div>
                     <div style="color: #999; font-size: 0.8em;">
@@ -828,6 +849,12 @@
             document.getElementById('lat').value = item.lat;
             document.getElementById('lon').value = item.lon;
             document.getElementById('year').value = item.year;
+            
+            // Load model if available
+            if (item.modelFile) {
+                document.getElementById('modelSelect').value = item.modelFile;
+            }
+            
             map.setView([parseFloat(item.lat), parseFloat(item.lon)], 10);
             
             // Check if this is an old history item without full data
@@ -854,7 +881,13 @@
             
             // Display the full prediction result (for items with complete data)
             document.getElementById('cropName').textContent = item.prediction.replace('_', ' ');
-            document.getElementById('confidence').textContent = `Confidence: ${item.confidence}%`;
+            
+            // Show model info if available
+            let confidenceHtml = `Confidence: ${item.confidence}%`;
+            if (item.modelName) {
+                confidenceHtml += `<br><small style="color: #4568DC; font-size: 0.85em;">🤖 Model: ${item.modelName}</small>`;
+            }
+            document.getElementById('confidence').innerHTML = confidenceHtml;
             
             // Show data quality info
             if (item.missingMonths && item.missingMonths.length > 0) {
@@ -889,6 +922,26 @@
         // Load history on page load
         renderHistory();
         
+        // Load available models on page load
+        async function loadAvailableModels() {
+            try {
+                const response = await fetch('/api/models');
+                const data = await response.json();
+                
+                if (data.models && data.models.length > 0) {
+                    const select = document.getElementById('modelSelect');
+                    select.innerHTML = data.models.map(model => 
+                        `<option value="${model.file}">${model.name} (${model.type})</option>`
+                    ).join('');
+                }
+            } catch (error) {
+                console.error('Failed to load models:', error);
+            }
+        }
+        
+        // Load models when page loads
+        loadAvailableModels();
+        
         function updateProgress(missingMonths) {
             // Update based on actual results - no animation, just show results
             months.forEach(month => {
@@ -918,6 +971,7 @@
             const lat = parseFloat(document.getElementById('lat').value);
             const lon = parseFloat(document.getElementById('lon').value);
             const year = parseInt(document.getElementById('year').value);
+            const model = document.getElementById('modelSelect').value;
             
             // Show loading, hide others
             document.getElementById('loading').classList.add('active');
@@ -935,7 +989,7 @@
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ lat, lon, year })
+                    body: JSON.stringify({ lat, lon, year, model })
                 });
                 
                 const data = await response.json();
@@ -945,12 +999,18 @@
                     updateProgress(data.missing_months || []);
                     
                     // Add to history with full data
-                    addToHistory(lat, lon, year, data.predicted_class, data.confidence, data.all_probabilities, data.missing_months);
+                    addToHistory(lat, lon, year, data.predicted_class, data.confidence, data.all_probabilities, data.missing_months, data.model_used);
                     
                     // Show result
                     document.getElementById('cropName').textContent = data.predicted_class.replace('_', ' ');
-                    document.getElementById('confidence').textContent = 
-                        `Confidence: ${(data.confidence * 100).toFixed(1)}%`;
+                    
+                    // Get model name for display
+                    const modelSelect = document.getElementById('modelSelect');
+                    const modelName = modelSelect.options[modelSelect.selectedIndex].text;
+                    
+                    document.getElementById('confidence').innerHTML = 
+                        `Confidence: ${(data.confidence * 100).toFixed(1)}%<br>` +
+                        `<small style="color: #4568DC; font-size: 0.85em;">🤖 Model: ${modelName}</small>`;
                     
                     // Show data quality info
                     if (data.missing_months && data.missing_months.length > 0) {
