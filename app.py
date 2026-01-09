@@ -288,9 +288,17 @@ class CropClassifier:
         self.model.to(self.device)
         self.model.eval()
         
-        # Load scaler
-        with open(self.model_dir / 'scaler.pkl', 'rb') as f:
-            self.scaler = pickle.load(f)
+        # Load scaler (use model-specific scaler if available, else default)
+        scaler_file = 'scaler2.pkl' if 'best_2' in model_file else 'scaler.pkl'
+        try:
+            with open(self.model_dir / scaler_file, 'rb') as f:
+                self.scaler = pickle.load(f)
+            print(f"✅ Loaded scaler: {scaler_file}")
+        except FileNotFoundError:
+            # Fallback to default scaler
+            with open(self.model_dir / 'scaler.pkl', 'rb') as f:
+                self.scaler = pickle.load(f)
+            print(f"⚠️ Using default scaler (scaler2.pkl not found)")
         
         print(f"✅ Loaded {self.model_name} model")
         print(f"   Classes: {self.class_names}")
