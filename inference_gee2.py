@@ -24,7 +24,7 @@ from pathlib import Path
 class CNN1D_Enhanced(nn.Module):
     """
     CNN1D Enhanced architecture matching colab_train2.py
-    WITHOUT Squeeze-Excitation blocks (old architecture)
+    Matches app.py implementation
     """
     def __init__(self, n_features, n_timesteps, n_classes, dropout=0.4):
         super().__init__()
